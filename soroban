@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bit Soroban — 2進そろばん</title>
+  <style>
+    :root { --bg:#0b0f17; --panel:#111827; --ink:#e5e7eb; --muted:#94a3b8; --line:#334155; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif;
+      background: radial-gradient(1200px 800px at 20% 10%, #101a33, var(--bg));
+      color: var(--ink);
+    }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 20px 16px 40px; }
+    header { display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; }
+    h1 { font-size: 20px; margin: 0; letter-spacing: .02em; }
+    .sub { color: var(--muted); font-size: 13px; margin: 0; }
+    .panel {
+      margin-top: 14px; background: color-mix(in oklab, var(--panel) 92%, #000 8%);
+      border: 1px solid color-mix(in oklab, var(--line) 70%, #000 30%);
+      border-radius: 14px; padding: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    .controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+    .btns { display:flex; gap:8px; flex-wrap:wrap; }
+    button {
+      border: 1px solid color-mix(in oklab, var(--line) 75%, #000 25%);
+      background: #0f172a;
+      color: var(--ink);
+      padding: 9px 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 600;
+      letter-spacing: .01em;
+    }
+    button:hover { filter: brightness(1.05); }
+    button:active { transform: translateY(1px); }
+    .pill {
+      display:inline-flex; gap:8px; align-items:center;
+      padding: 8px 10px; border-radius: 999px;
+      border: 1px solid color-mix(in oklab, var(--line) 70%, #000 30%);
+      background: rgba(15, 23, 42, .65);
+      color: var(--muted); font-size: 12px;
+    }
+    .grid { margin-top: 12px; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 10px; }
+    .col {
+      position: relative;
+      border: 1px solid color-mix(in oklab, var(--line) 65%, #000 35%);
+      border-radius: 14px;
+      background: rgba(2, 6, 23, .35);
+      padding: 10px 8px 10px;
+      min-height: 220px;
+      overflow: hidden;
+      user-select: none;
+    }
+    .w { text-align:center; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+    .rail {
+      position: absolute; left: 50%; top: 44px; bottom: 16px; width: 4px;
+      transform: translateX(-50%);
+      background: linear-gradient(#1f2937, #0b1220);
+      border-radius: 999px; opacity: .85;
+    }
+    .beam {
+      position: absolute; left: 10%; right: 10%; top: 110px; height: 3px;
+      background: color-mix(in oklab, var(--line) 80%, #000 20%);
+      border-radius: 999px; opacity: .95;
+    }
+    .bead {
+      position: absolute; left: 50%;
+      width: 62%; max-width: 66px; height: 34px;
+      transform: translateX(-50%);
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: radial-gradient(18px 18px at 30% 30%, rgba(255,255,255,.18), rgba(0,0,0,.05)),
+                  linear-gradient(180deg, rgba(148,163,184,.22), rgba(15,23,42,.4));
+      box-shadow: 0 6px 16px rgba(0,0,0,.35);
+      transition: top .18s ease, filter .18s ease, box-shadow .18s ease;
+      cursor: pointer;
+    }
+    /* そろばんっぽく：下=0 / 上=1（クリックで「はじく」） */
+    .bit0 { top: 132px; }  /* 下（0） */
+    .bit1 { top: 62px; }   /* 上（1） */
+
+    .col.on .bead { filter: brightness(1.18); box-shadow: 0 8px 22px rgba(0,0,0,.45); }
+    .col.on { outline: 2px solid rgba(99,102,241,.45); outline-offset: 0; }
+    .flash { animation: flash .42s ease; }
+    @keyframes flash {
+      0% { outline-color: rgba(251,191,36,.15); }
+      40% { outline-color: rgba(251,191,36,.85); }
+      100% { outline-color: rgba(99,102,241,.45); }
+    }
+
+    .readout { margin-top: 14px; display: grid; gap: 8px; }
+    .row {
+      display:flex; gap:10px; flex-wrap:wrap;
+      align-items:baseline; justify-content:space-between;
+      border: 1px solid color-mix(in oklab, var(--line) 65%, #000 35%);
+      border-radius: 12px; padding: 10px 12px;
+      background: rgba(15,23,42,.55);
+    }
+    .label { color: var(--muted); font-size: 12px; }
+    .val { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Noto Sans Mono", monospace; font-size: 14px; }
+    .hint { color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.5; }
+
+    @media (max-width: 720px){
+      .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .col { min-height: 210px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Bit Soroban</h1>
+      <p class="sub">クリックで玉を「はじく」。下→上で1、上→下で0の感覚。</p>
+    </header>
+
+    <div class="panel">
+      <div class="controls">
+        <div class="btns">
+          <button id="plus">+1</button>
+          <button id="minus">-1</button>
+          <button id="clear">クリア</button>
+          <button id="rand">ランダム</button>
+        </div>
+        <div class="pill" title="8ビット(0〜255)">8bit / 範囲: <span>0–255</span></div>
+      </div>
+
+      <div class="grid" id="grid" aria-label="binary abacus"></div>
+
+      <div class="readout">
+        <div class="row"><div class="label">2進</div><div class="val" id="bin">00000000</div></div>
+        <div class="row"><div class="label">10進</div><div class="val" id="dec">0</div></div>
+        <div class="row"><div class="label">分解</div><div class="val" id="sum">0</div></div>
+      </div>
+
+      <div class="hint">
+        操作：<b>玉をクリック</b>で「はじく」（0→1 / 1→0）。<br/>
+        さらに：列の<b>梁より下をクリック＝1</b>、<b>梁より上をクリック＝0</b>（そろばん感アップ）。
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---- state ----
+    const weights = [128, 64, 32, 16, 8, 4, 2, 1]; // MSB -> LSB
+    let bits = Array(weights.length).fill(0);
+
+    const elGrid = document.getElementById("grid");
+    const elBin  = document.getElementById("bin");
+    const elDec  = document.getElementById("dec");
+    const elSum  = document.getElementById("sum");
+
+    function valueOfBits(arr){
+      let v = 0;
+      for (let i=0; i<arr.length; i++) v += arr[i] * weights[i];
+      return v;
+    }
+    function bitsToString(arr){ return arr.join(""); }
+    function sumExpression(arr){
+      const parts = [];
+      for (let i=0; i<arr.length; i++) if (arr[i] === 1) parts.push(String(weights[i]));
+      if (parts.length === 0) return "0";
+      const total = valueOfBits(arr);
+      return parts.join(" + ") + " = " + total;
+    }
+
+    function flashColumn(i){
+      const col = elGrid.querySelector(`.col[data-index="${i}"]`);
+      if (!col) return;
+      col.classList.remove("flash");
+      void col.offsetWidth;
+      col.classList.add("flash");
+    }
+
+    function setBit(i, v){
+      const nv = v ? 1 : 0;
+      if (bits[i] === nv) return;
+      bits[i] = nv;
+      flashColumn(i);
+      syncUI();
+    }
+
+    function toggleBit(i){
+      bits[i] = bits[i] ? 0 : 1;
+      flashColumn(i);
+      syncUI();
+    }
+
+    function syncUI(){
+      const cols = elGrid.querySelectorAll(".col");
+      cols.forEach((col) => {
+        const i = Number(col.dataset.index);
+        const bead = col.querySelector(".bead");
+        const on = bits[i] === 1;
+        col.classList.toggle("on", on);
+        bead.classList.toggle("bit0", !on);
+        bead.classList.toggle("bit1", on);
+      });
+      elBin.textContent = bitsToString(bits);
+      elDec.textContent = String(valueOfBits(bits));
+      elSum.textContent = sumExpression(bits);
+    }
+
+    // ---- click behavior ----
+    // 1) bead click: always "flick" to the other position (0<->1)
+    // 2) column click: click below the beam => 1, above the beam => 0 (more abacus-like)
+    function makeColumn(i){
+      const col = document.createElement("div");
+      col.className = "col";
+      col.dataset.index = String(i);
+      col.tabIndex = 0;
+
+      const w = document.createElement("div");
+      w.className = "w";
+      w.textContent = weights[i];
+      col.appendChild(w);
+
+      const rail = document.createElement("div");
+      rail.className = "rail";
+      col.appendChild(rail);
+
+      const beam = document.createElement("div");
+      beam.className = "beam";
+      col.appendChild(beam);
+
+      const bead = document.createElement("div");
+      bead.className = "bead bit0";
+      bead.title = "クリックで玉をはじく（0↔1）";
+      bead.addEventListener("click", (e) => {
+        e.stopPropagation(); // 列クリックと二重発火しない
+        toggleBit(i);
+      });
+      col.appendChild(bead);
+
+      // Column click: decide by where you clicked (above/below beam)
+      col.addEventListener("click", (e) => {
+        const rect = col.getBoundingClientRect();
+        const y = e.clientY - rect.top;
+
+        // beam is at top:110px, height:3px, plus header padding.
+        // But responsive/layout could shift, so compute actual beam position from DOM:
+        const beamRect = beam.getBoundingClientRect();
+        const beamY = (beamRect.top - rect.top) + (beamRect.height / 2);
+
+        if (y > beamY) setBit(i, 1); // 下をクリック = 上へ押し上げた扱い = 1
+        else setBit(i, 0);           // 上をクリック = 下へ落とした扱い = 0
+      });
+
+      // keyboard: ↑ => 1, ↓ => 0, Space/Enter => flick
+      col.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowUp") { e.preventDefault(); setBit(i, 1); }
+        if (e.key === "ArrowDown") { e.preventDefault(); setBit(i, 0); }
+        if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggleBit(i); }
+      });
+
+      return col;
+    }
+
+    function init(){
+      elGrid.innerHTML = "";
+      for (let i=0; i<weights.length; i++){
+        elGrid.appendChild(makeColumn(i));
+      }
+      syncUI();
+    }
+
+    // +1 / -1
+    function addOne(){
+      for (let i=weights.length-1; i>=0; i--){
+        if (bits[i] === 0){
+          bits[i] = 1; flashColumn(i); break;
+        } else {
+          bits[i] = 0; flashColumn(i);
+          if (i === 0) { /* overflow wrap */ }
+        }
+      }
+      syncUI();
+    }
+    function subOne(){
+      for (let i=weights.length-1; i>=0; i--){
+        if (bits[i] === 1){
+          bits[i] = 0; flashColumn(i); break;
+        } else {
+          bits[i] = 1; flashColumn(i);
+          if (i === 0) { /* underflow wrap */ }
+        }
+      }
+      syncUI();
+    }
+
+    function clearAll(){ bits = bits.map(() => 0); syncUI(); }
+    function randomize(){ bits = bits.map(() => (Math.random() < 0.5 ? 0 : 1)); syncUI(); }
+
+    document.getElementById("plus").addEventListener("click", addOne);
+    document.getElementById("minus").addEventListener("click", subOne);
+    document.getElementById("clear").addEventListener("click", clearAll);
+    document.getElementById("rand").addEventListener("click", randomize);
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "+" || e.key === "=") addOne();
+      if (e.key === "-" || e.key === "_") subOne();
+      if (e.key.toLowerCase() === "r") randomize();
+      if (e.key.toLowerCase() === "c") clearAll();
+    });
+
+    init();
+  </script>
+</body>
+</html>
