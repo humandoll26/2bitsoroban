@@ -123,6 +123,9 @@
           <button id="minus">-1</button>
           <button id="clear">クリア</button>
           <button id="rand">ランダム</button>
+          10進数を2進数に変換するときは➡
+          <input id="decInput" type="number" min="0" max="255" placeholder="10進数" style="width:90px;padding:6px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e5e7eb;">
+          <button id="applyDec">反映</button>
         </div>
         <div class="pill" title="8ビット(0〜255)">8bit / 範囲: <span>0–255</span></div>
       </div>
@@ -137,6 +140,7 @@
 
       <div class="hint">
         操作：<b>玉をクリック</b>で「はじく」（0→1 / 1→0）。<br/>
+        さらに：列の<b>梁より下をクリック＝1</b>、<b>梁より上をクリック＝0</b>（そろばん感アップ）。
       </div>
     </div>
   </div>
@@ -291,7 +295,22 @@
 
     function clearAll(){ bits = bits.map(() => 0); syncUI(); }
     function randomize(){ bits = bits.map(() => (Math.random() < 0.5 ? 0 : 1)); syncUI(); }
+    // 10進入力 → ビット反映
+    function applyDecimal(){
+      const input = document.getElementById("decInput");
+      let v = parseInt(input.value, 10);
 
+      if (isNaN(v)) return;
+      if (v < 0) v = 0;
+      if (v > 255) v = 255;
+
+      for (let i = 0; i < weights.length; i++){
+        bits[i] = (v & weights[i]) ? 1 : 0;
+      }
+      syncUI();
+    }
+
+document.getElementById("applyDec").addEventListener("click", applyDecimal);
     document.getElementById("plus").addEventListener("click", addOne);
     document.getElementById("minus").addEventListener("click", subOne);
     document.getElementById("clear").addEventListener("click", clearAll);
